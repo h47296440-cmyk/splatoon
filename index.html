@@ -6,6 +6,16 @@
     <title>2D Splatoon - Ultimate Edition</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #e0e0e0; touch-action: none; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; user-select: none; }
+        .scroll-btn { display: none; background: #333; color: white; border: none; padding: 10px; font-size: 20px; cursor: pointer; flex: 1; margin: 0 5px; border-radius: 5px; }
+        .smartphone-mode .scroll-btn { display: block; }
+        .smartphone-mode select { height: 150px !important; font-size: 16px; }
+        .smartphone-mode .panel { padding: 10px !important; }
+        .color-picker { margin: 5px; }
+        .scroll-btn { display: none; background: #333; color: white; border: none; padding: 10px; font-size: 20px; cursor: pointer; flex: 1; margin: 0 5px; border-radius: 5px; }
+        .smartphone-mode .scroll-btn { display: block; }
+        .smartphone-mode select { height: 150px !important; font-size: 16px; }
+        .smartphone-mode .panel { padding: 10px !important; }
+        .color-picker { margin: 5px; }
         canvas { position: absolute; top: 0; left: 0; transform-origin: 0 0; }
         #bgCanvas { z-index: 1; } #fgCanvas { z-index: 2; }
         
@@ -18,7 +28,7 @@
         .btn-chaos { background: #ff3366; box-shadow: 0 4px 0 #b30033; color: white; }
         
         .weapon-select { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; margin-bottom: 10px; }
-        .wpn-btn { background: #555; color: white; border: 2px solid #333; padding: 12px; border-radius: 8px; cursor: pointer; width: 45%; font-weight: bold; font-size: 14px; }
+        .wpn-btn { background: #555; color: white; border: 2px solid #333; padding: 6px; border-radius: 5px; cursor: pointer; width: 31%; font-weight: bold; font-size: 11px; }
         .wpn-btn.active { background: #00ffcc; color: #000; border-color: #fff; }
         #wpnDesc { font-size: 12px; background: rgba(0,0,0,0.5); padding: 8px; border-radius: 5px; color: #ddd; min-height: 30px; }
         
@@ -70,6 +80,7 @@
     </style>
 </head>
 <body>
+    <div id="achievementUi" style="position:absolute; top:20px; left:50%; transform:translateX(-50%); background:rgba(255,215,0,0.9); color:#000; padding:10px 20px; border-radius:10px; font-weight:bold; display:none; z-index:300; border:2px solid #fff; box-shadow:0 0 10px #ff0;"></div>
     <div id="homeScreen">
         <h1>2D Splatoon Ultimate</h1>
         <div class="panel">
@@ -109,6 +120,8 @@
             <button class="start-btn" style="background:#9932cc; color:white;" onclick="startGame(16, 'tower')">Tower 16v16</button>
             <button class="start-btn" style="background:#ff8c00" onclick="startGame(4, 'rainmaker')">Rainmaker 4v4</button>
             <button class="start-btn" style="background:#ff8c00" onclick="startGame(16, 'rainmaker')">Rainmaker 16v16</button>
+            <button class="start-btn" style="background:#ff69b4; color:white;" onclick="startGame(4, 'clam')">Clam Blitz 4v4</button>
+            <button class="start-btn" style="background:#ff69b4; color:white;" onclick="startGame(16, 'clam')">Clam Blitz 16v16</button>
             <button class="start-btn btn-chaos" onclick="startGame(4, 'salmon')">Salmon Run 4 Players</button>
             <button class="start-btn btn-chaos" onclick="startGame(16, 'salmon')">Salmon Run 16 Players</button>
             <button class="start-btn" style="background:#ffea00; color:#333; width: 93%;" onclick="startGame(1, 'hero')">Hero Mode (Single)</button>
@@ -147,6 +160,7 @@
     </div>
     
     <div id="gachiUi"><div id="gachiModeName"></div><div class="gachi-counts"><span id="c0">100</span> - <span id="c1">100</span></div></div>
+    <div id="clamUi" style="position: absolute; top: 90px; left: 50%; transform: translateX(-50%); z-index: 10; background: rgba(255, 255, 255, 0.9); padding: 5px 15px; border-radius: 8px; font-weight: bold; display: none; text-align: center; border: 2px solid #ff69b4; color:#ff69b4;">My Clams: <span id="myClams">0</span> / 10</div>
 
     <div id="salmonUi">
         <div id="salmonWaveText">WAVE 1</div>
@@ -165,6 +179,17 @@
     <div id="btnHide" class="action-btn">HIDE</div><div id="btnSub" class="action-btn">SUB</div><div id="btnSp" class="action-btn">SP</div>
 
 <script>
+        let achievements = JSON.parse(localStorage.getItem('splatoon_achievements') || '{}');
+    function unlockAchievement(id, name) {
+        if (!achievements[id]) {
+            achievements[id] = true;
+            localStorage.setItem('splatoon_achievements', JSON.stringify(achievements));
+            let ui = document.getElementById('achievementUi');
+            ui.innerText = `🏆 実績解除: ${name}`;
+            ui.style.display = 'block';
+            setTimeout(() => ui.style.display = 'none', 3000);
+        }
+    }
     const TITLES_1 = ['かけ出しの', '熟練の', '伝説の', '永遠の', 'やられがちな', 'イケイケな', '孤高の', '神に選ばれし', '限界突破の'];
     const TITLES_2 = ['イカ', 'タコ', 'バイトリーダー', 'シューター使い', 'ローラー使い', 'チャージャー使い', 'ブラスター使い', 'スロッシャー使い', 'フデ使い'];
     const t1 = document.getElementById('title1'); const t2 = document.getElementById('title2');
@@ -192,6 +217,7 @@
     let bestCount = [100, 100];
     let eggCount = 0; let eggQuota = 15;
     let currentWave = 1; let isExtraWave = false; let hazardLevel = 100;
+    let heroStage = 1;
     let basket = { x: STAGE_W / 2, y: STAGE_H / 2, radius: 40 };
 
     let killLogTimer;
@@ -238,7 +264,23 @@
 
         INKBRUSH: { id: 17, name: 'Inkbrush', fireRate: 4, bulletSpeed: 18, damage: 25, inkSize: 20, spread: 0.5, inkCost: 1, sub: 'SPLASH', sp: 'SPLASHDOWN', desc: '超高速・近接。サブ: スプラッシュ / SP: チャクチ' },
         OCTOBRUSH: { id: 18, name: 'Octobrush', fireRate: 6, bulletSpeed: 15, damage: 40, inkSize: 25, spread: 0.4, inkCost: 2, sub: 'SUCTION', sp: 'BOOYAH_BOMB', desc: '威力・範囲向上。サブ: キューバン / SP: ナイスダマ' },
+        MANEUVER: { id: 19, name: 'Splat Dualies', fireRate: 5, bulletSpeed: 14, damage: 30, inkSize: 22, spread: 0.25, inkCost: 1.0, sub: 'QUICK', sp: 'LASER', desc: 'マニューバー: 2丁拳銃で連射。サブ: クイック / SP: メガホンレーザー' },
+        WIPER: { id: 20, name: 'Splatana Wiper', fireRate: 12, bulletSpeed: 20, damage: 45, inkSize: 30, spread: 0.1, inkCost: 3.0, sub: 'CURLING', sp: 'ARMOR', desc: 'ワイパー: 近接連撃。サブ: カーリング / SP: インクアーマー' },
+        STRINGER: { id: 21, name: 'Tri-Stringer', fireRate: 35, bulletSpeed: 25, damage: 35, inkSize: 18, spread: 0.3, inkCost: 8.0, sub: 'SPLASH', sp: 'LASER', desc: 'ストリンガー: 3WAY射撃。サブ: スプラッシュ / SP: メガホンレーザー' },
+        BRELLA: { id: 22, name: 'Splat Brella', fireRate: 20, bulletSpeed: 15, damage: 65, inkSize: 35, spread: 0.2, inkCost: 6.0, sub: 'SUCTION', sp: 'ARMOR', desc: 'シェルター: 散弾。サブ: キューバン / SP: インクアーマー' },
+        SPLASHOOTER_C: { id: 23, name: 'Tentatek Splattershot', fireRate: 6, bulletSpeed: 14, damage: 35, inkSize: 25, spread: 0.1, inkCost: 1.5, sub: 'SUCTION', sp: 'LASER', desc: 'スプラシューターコラボ。サブ: キューバン / SP: メガホンレーザー' },
+        DYNAMO_T: { id: 24, name: 'Gold Dynamo Roller', fireRate: 50, bulletSpeed: 14, damage: 150, inkSize: 50, spread: 0.5, inkCost: 18, sub: 'SPLASH', sp: 'BOMB_RUSH', desc: 'ダイナモテスラ。サブ: スプラッシュ / SP: ボムラッシュ' },
+        MANEUVER_C: { id: 25, name: 'Enperry Splat Dualies', fireRate: 5, bulletSpeed: 14, damage: 30, inkSize: 22, spread: 0.25, inkCost: 1.0, sub: 'CURLING', sp: 'SHARK', desc: 'マニューバーコラボ。サブ: カーリング / SP: サメライド' },
+        WIPER_D: { id: 26, name: 'Splatana Wiper Deco', fireRate: 12, bulletSpeed: 20, damage: 45, inkSize: 30, spread: 0.1, inkCost: 3.0, sub: 'QUICK', sp: 'ENERGY_STAND', desc: 'ワイパーデコ。サブ: クイック / SP: エナジースタンド' },
+        ORIGINAL_WHIP: { id: 27, name: 'Splat Whip', fireRate: 25, bulletSpeed: 0, damage: 90, inkSize: 45, spread: 0, inkCost: 5.0, sub: 'QUICK', sp: 'METEOR', desc: 'オリジナル: スプラムチ。サブ: クイック / SP: メテオストライク' },
 
+        EXPLOSHER: { id: 28, name: 'Explosher', fireRate: 50, bulletSpeed: 12, damage: 90, inkSize: 45, spread: 0.1, inkCost: 8.0, sub: 'SPLASH', sp: 'TORNADO', desc: 'エクスプロッシャー。サブ: スプラッシュ / SP: トルネード' },
+        RPEN5H: { id: 29, name: 'Snipewriter 5H', fireRate: 40, bulletSpeed: 25, damage: 68, inkSize: 20, spread: 0, inkCost: 6.0, sub: 'SPRINKLER', sp: 'ENERGY_STAND', desc: 'R-PEN/5H。サブ: スプリンクラー / SP: エナジースタンド' },
+        WIDEROLLER: { id: 30, name: 'Big Swig Roller', fireRate: 35, bulletSpeed: 16, damage: 70, inkSize: 55, spread: 0.6, inkCost: 7.0, sub: 'WALL', sp: 'VACUUM', desc: 'ワイドローラー。サブ: シールド / SP: キューインキ' },
+        GAL96: { id: 31, name: '.96 Gal', fireRate: 15, bulletSpeed: 14, damage: 62, inkSize: 32, spread: 0.2, inkCost: 3.0, sub: 'SPRINKLER', sp: 'KRAKEN', desc: '.96ガロン。サブ: スプリンクラー / SP: テイオウイカ' },
+        LITER4K_CUST: { id: 32, name: 'E-liter 4K Custom', fireRate: 70, bulletSpeed: 32, damage: 180, inkSize: 25, spread: 0, inkCost: 20.0, sub: 'BEAKON', sp: 'KRAKEN', desc: 'リッター4Kカスタム。サブ: ビーコン / SP: テイオウイカ' },
+        RAPID_DECO: { id: 33, name: 'Rapid Blaster Deco', fireRate: 30, bulletSpeed: 14, damage: 85, inkSize: 30, spread: 0, inkCost: 7.0, sub: 'TORPEDO', sp: 'SPIDER', desc: 'ラピッドブラスターデコ。サブ: トーピード / SP: ショクワンダー' },
+        GAL52_K: { id: 34, name: 'Kensa .52 Gal', fireRate: 9, bulletSpeed: 13, damage: 52, inkSize: 28, spread: 0.15, inkCost: 2.5, sub: 'WALL', sp: 'BOOYAH_BOMB', desc: '52ガロンベッチュー。サブ: シールド / SP: ナイスダマ' },
         RM_SHOT: { id: 99, name: 'Rainmaker', fireRate: 60, bulletSpeed: 12, damage: 150, inkSize: 100, spread: 0, inkCost: 0, sub: 'NONE', sp: 'NONE' },
         SALMON_MELEE: { id: 100, name: 'Melee', fireRate: 60, bulletSpeed: 0, damage: 40, inkSize: 0, spread: 0, inkCost: 0, sub: 'NONE', sp: 'NONE'}
     };
@@ -260,33 +302,35 @@
     const touchMove = { x: 0, y: 0, active: false }; const touchShoot = { x: 0, y: 0, active: false };
     let mobileHide = false, mobileSub = false, mobileSp = false;
 
-    // Touch Controls
-    ['btnHide', 'btnSub', 'btnSp'].forEach(id => {
-        let btn = document.getElementById(id);
-        btn.addEventListener('touchstart', e => { e.preventDefault(); if(id==='btnHide') {mobileHide=true; btn.style.background='#ccc';} else if(id==='btnSub') mobileSub=true; else mobileSp=true; });
-        btn.addEventListener('touchend', e => { e.preventDefault(); if(id==='btnHide') {mobileHide=false; btn.style.background='rgba(255,255,255,0.8)';} });
-    });
-    const handleTouch = (e) => {
-        if(e.cancelable) e.preventDefault(); 
-        touchMove.active = touchShoot.active = false;
-        let jL = document.getElementById('joyLeft').getBoundingClientRect(), jR = document.getElementById('joyRight').getBoundingClientRect();
-        let cL = { x: jL.left + jL.width/2, y: jL.top + jL.height/2 }, cR = { x: jR.left + jR.width/2, y: jR.top + jR.height/2 };
-        for (let t of e.touches) {
-            if (t.target.classList.contains('action-btn')) continue;
-            if (t.clientX < width / 2) { touchMove.active = true; touchMove.x = t.clientX - cL.x; touchMove.y = t.clientY - cL.y; let d=Math.hypot(touchMove.x, touchMove.y); if(d>35){touchMove.x=(touchMove.x/d)*35; touchMove.y=(touchMove.y/d)*35;} document.getElementById('knobLeft').style.transform = `translate(${touchMove.x}px, ${touchMove.y}px)`; }
-            else { touchShoot.active = true; touchShoot.x = t.clientX - cR.x; touchShoot.y = t.clientY - cR.y; let d=Math.hypot(touchShoot.x, touchShoot.y); if(d>35){touchShoot.x=(touchShoot.x/d)*35; touchShoot.y=(touchShoot.y/d)*35;} document.getElementById('knobRight').style.transform = `translate(${touchShoot.x}px, ${touchShoot.y}px)`; }
-        }
-        if(!touchMove.active) document.getElementById('knobLeft').style.transform = `translate(0px, 0px)`;
-        if(!touchShoot.active) document.getElementById('knobRight').style.transform = `translate(0px, 0px)`;
-    };
-    window.addEventListener('touchstart', handleTouch, {passive: false}); window.addEventListener('touchmove', handleTouch, {passive: false}); window.addEventListener('touchend', handleTouch, {passive: false});
-
-    // PC Controls
-    window.addEventListener('keydown', e => { let k = e.key.toLowerCase(); if(k===' ') keys.space=true; else if(k==='shift') keys.shift=true; else if(keys.hasOwnProperty(k)) keys[k]=true; });
-    window.addEventListener('keyup', e => { let k = e.key.toLowerCase(); if(k===' ') keys.space=false; else if(k==='shift') keys.shift=false; else if(keys.hasOwnProperty(k)) keys[k]=false; });
-    window.addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
-    window.addEventListener('mousedown', () => { mouse.down = true; }); window.addEventListener('mouseup', () => { mouse.down = false; });
-
+    if (isMobile) {
+        ['btnHide', 'btnSub', 'btnSp'].forEach(id => {
+            let btn = document.getElementById(id);
+            btn.addEventListener('touchstart', e => { e.preventDefault(); if(id==='btnHide') {mobileHide=true; btn.style.background='#ccc';} else if(id==='btnSub') mobileSub=true; else mobileSp=true; });
+            btn.addEventListener('touchend', e => { e.preventDefault(); if(id==='btnHide') {mobileHide=false; btn.style.background='rgba(255,255,255,0.8)';} });
+        });
+        const handleTouch = (e) => {
+            if (e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT') return;
+            let hs = document.getElementById('homeScreen');
+            let rs = document.getElementById('recordsScreen');
+            if ((hs && hs.style.display !== 'none' && hs.style.display !== '') || (rs && rs.style.display !== 'none' && rs.style.display !== '')) return;
+            e.preventDefault(); touchMove.active = touchShoot.active = false;
+            let jL = document.getElementById('joyLeft').getBoundingClientRect(), jR = document.getElementById('joyRight').getBoundingClientRect();
+            let cL = { x: jL.left + jL.width/2, y: jL.top + jL.height/2 }, cR = { x: jR.left + jR.width/2, y: jR.top + jR.height/2 };
+            for (let t of e.touches) {
+                if (t.target.classList.contains('action-btn')) continue;
+                if (t.clientX < width / 2) { touchMove.active = true; touchMove.x = t.clientX - cL.x; touchMove.y = t.clientY - cL.y; let d=Math.hypot(touchMove.x, touchMove.y); if(d>35){touchMove.x=(touchMove.x/d)*35; touchMove.y=(touchMove.y/d)*35;} document.getElementById('knobLeft').style.transform = `translate(${touchMove.x}px, ${touchMove.y}px)`; }
+                else { touchShoot.active = true; touchShoot.x = t.clientX - cR.x; touchShoot.y = t.clientY - cR.y; let d=Math.hypot(touchShoot.x, touchShoot.y); if(d>35){touchShoot.x=(touchShoot.x/d)*35; touchShoot.y=(touchShoot.y/d)*35;} document.getElementById('knobRight').style.transform = `translate(${touchShoot.x}px, ${touchShoot.y}px)`; }
+            }
+            if(!touchMove.active) document.getElementById('knobLeft').style.transform = `translate(0px, 0px)`;
+            if(!touchShoot.active) document.getElementById('knobRight').style.transform = `translate(0px, 0px)`;
+        };
+        window.addEventListener('touchstart', handleTouch, {passive: false}); window.addEventListener('touchmove', handleTouch, {passive: false}); window.addEventListener('touchend', handleTouch, {passive: false});
+    } else {
+        window.addEventListener('keydown', e => { let k = e.key.toLowerCase(); if(k===' ') keys.space=true; else if(k==='shift') keys.shift=true; else if(keys.hasOwnProperty(k)) keys[k]=true; });
+        window.addEventListener('keyup', e => { let k = e.key.toLowerCase(); if(k===' ') keys.space=false; else if(k==='shift') keys.shift=false; else if(keys.hasOwnProperty(k)) keys[k]=false; });
+        window.addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
+        window.addEventListener('mousedown', () => { mouse.down = true; }); window.addEventListener('mouseup', () => { mouse.down = false; });
+    }
 
     function resetToHome() {
         document.getElementById('endScreen').style.display = 'none';
@@ -379,6 +423,7 @@
         }
         html += `</table>`;
         document.getElementById('endDetail').innerHTML = html;
+        if (title.includes('WIN') || title.includes('CLEAR')) unlockAchievement('first_win', '勝利の美酒 (ゲームクリア/勝利)');
         
         // ローカルストレージに保存
         saveResultToLocal(title, detail, html);
@@ -518,6 +563,38 @@
         }
 
         update() {
+            if (this.isKraken) {
+                this.specialTimer--;
+                this.hp = this.maxHp; // Invincible
+                let speed = 6;
+                this.x += Math.cos(this.angle) * speed; this.y += Math.sin(this.angle) * speed;
+                let p = splat(this.x, this.y, 40, this.team, this); this.paintPoints += p;
+                for (let pl of players) if (pl.team !== this.team && Math.hypot(pl.x - this.x, pl.y - this.y) < 50) pl.takeDamage(120, this);
+                if (this.specialTimer <= 0) { this.isKraken = false; this.isSpecialActive = false; }
+                this.x = Math.max(this.radius, Math.min(STAGE_W - this.radius, this.x)); this.y = Math.max(this.radius, Math.min(STAGE_H - this.radius, this.y));
+                return;
+            }
+            if (this.isSpider) {
+                this.specialTimer--;
+                if (this.attackHeldTimer === 1 && this.ink >= 5) {
+                    this.ink -= 5;
+                    this.x += Math.cos(this.angle) * 300; this.y += Math.sin(this.angle) * 300; // Zipcast forward
+                    let p = splat(this.x, this.y, 100, this.team, this); this.paintPoints += p;
+                    for (let pl of players) if (pl.team !== this.team && Math.hypot(pl.x - this.x, pl.y - this.y) < 100) pl.takeDamage(80, this);
+                }
+                if (this.specialTimer <= 0) { this.isSpider = false; this.isSpecialActive = false; }
+            }
+            if (this.isSharking) {
+                this.specialTimer--;
+                this.x += Math.cos(this.angle) * 15; this.y += Math.sin(this.angle) * 15;
+                if (this.specialTimer <= 0) {
+                    this.isSharking = false; this.isSpecialActive = false;
+                    let p = splat(this.x, this.y, 200, this.team, this); this.paintPoints += p;
+                    for (let pl of players) if (pl.team !== this.team && Math.hypot(pl.x - this.x, pl.y - this.y) < 200) pl.takeDamage(200, this);
+                }
+                this.x = Math.max(this.radius, Math.min(STAGE_W - this.radius, this.x)); this.y = Math.max(this.radius, Math.min(STAGE_H - this.radius, this.y));
+                return;
+            }
             if (this.isDead) {
                 if(this.isLifeRing) {
                     if(this.isPlayer) {
@@ -540,15 +617,31 @@
             if (this.hasGoldenEgg && Math.hypot(this.x - basket.x, this.y - basket.y) < basket.radius) { 
                 this.hasGoldenEgg = false; eggCount++; this.goldenEggsDelivered++;
                 document.getElementById('salmonEggCount').innerText = `${eggCount} / ${eggQuota}`; 
+                if (gameMode === 'salmon' && !isExtraWave && eggCount >= eggQuota) {
+                    if (currentWave < 3) { currentWave++; startWave(); }
+                    else { isExtraWave = true; startWave(); }
+                }
+            }
+            if (gameMode === 'clam' && !this.salmonType) {
+                clams.forEach(c => { if(c.active && Math.hypot(this.x - c.x, this.y - c.y) < this.radius + 15) { c.active = false; this.clams = (this.clams||0) + 1; } });
+                let targetBasket = clamBaskets.find(b => b.team !== this.team);
+                if (targetBasket && this.clams > 0 && Math.hypot(this.x - targetBasket.x, this.y - targetBasket.y) < 100) {
+                    bestCount[targetBasket.team] -= this.clams; this.clams = 0;
+                    document.getElementById(`c${targetBasket.team}`).innerText = Math.max(0, bestCount[targetBasket.team]);
+                    if (bestCount[targetBasket.team] <= 0) endGame(`${this.team===0?'BLUE':'ORANGE'} KNOCKOUT!!`, `Clam Blitz Goal!`);
+                }
             }
 
             if (this.isSpecialActive && this.weapon.sp === 'SPLASHDOWN') {
                 this.specialTimer--;
                 if (this.specialTimer <= 0) { this.isSpecialActive = false; let p = splat(this.x, this.y, 160, this.team, this); this.paintPoints += p; if(!this.salmonType) this.sp+=p; for (let pl of players) if (pl.team !== this.team && Math.hypot(pl.x - this.x, pl.y - this.y) < 160) pl.takeDamage(150, this); if(gameMode === 'rainmaker' && rainmaker && rainmaker.state === 'barrier' && Math.hypot(rainmaker.x - this.x, rainmaker.y - this.y) < 160) rainmaker.takeDamage(300, this.team); } return; 
             }
-            if (this.isSpecialActive && this.weapon.sp === 'BOMB_RUSH') {
+            if (this.isSpecialActive && (this.weapon.sp === 'BOMB_RUSH' || this.weapon.sp === 'ARMOR' || this.weapon.sp === 'ENERGY_STAND')) {
                 this.specialTimer--;
-                if (this.specialTimer <= 0) this.isSpecialActive = false;
+                if (this.specialTimer <= 0) {
+                    this.isSpecialActive = false;
+                    if(this.weapon.sp === 'ARMOR') { this.maxHp = 100; this.hp = Math.min(this.hp, this.maxHp); }
+                }
             }
 
             let dx = 0, dy = 0, speedMult = 1.0, isShooting = false, wantsToHide = false, wantsSub = false, wantsSp = false;
@@ -575,7 +668,7 @@
                     this.angle = Math.atan2(worldMouseY - this.y, worldMouseX - this.x);
                 }
 
-                if ([11, 12, 13].includes(this.weapon.id)) { // Chargers
+                if ([11, 12, 13, 29, 32].includes(this.weapon.id)) { // Chargers
                     if (wantsToAttack) {
                         this.isCharging = true;
                         this.chargeTimer = Math.min(60, this.chargeTimer + 1);
@@ -671,21 +764,30 @@
 
                 let nearestEnemy = null; let minDist = 350; 
                 for (let p of players) { if (!p.isDead && p.team !== this.team) { let d = Math.hypot(p.x - this.x, p.y - this.y); if (gameMode === 'rainmaker' && p.hasRainmaker) d -= 200; if (gameMode === 'tower' && tower && Math.hypot(p.x-tower.x, p.y-tower.y)<tower.radius) d -= 150; if (d < minDist) { minDist = d; nearestEnemy = p; } } }
-                if (nearestEnemy && !this.hasRainmaker && !deadTeammate && (!this.hasGoldenEgg || minDist < 150)) {
+                let holdingMaxClams = (gameMode === 'clam' && this.clams >= 10);
+                if (nearestEnemy && !this.hasRainmaker && !holdingMaxClams && !deadTeammate && (!this.hasGoldenEgg || minDist < 150)) {
                     this.angle = Math.atan2(nearestEnemy.y - this.y, nearestEnemy.x - this.x) + (Math.random() - 0.5) * 0.2;
                     if (minDist < 250) isShooting = true; if (this.sp >= this.maxSp && minDist < 200) wantsSp = true; if (this.ink > 70 && minDist > 100 && Math.random() < 0.01) wantsSub = true;
                 } else { this.angle = Math.atan2(ty - this.y, tx - this.x); }
                 if (!this.hasRainmaker && (this.ink < 30 || (!isShooting && onOwnInk && Math.random() < 0.05))) wantsToHide = true;
+                let danger = strikes.find(s => Math.hypot(s.x - this.x, s.y - this.y) < s.radius + 20);
+                if (danger && !this.salmonType && !this.hasRainmaker) {
+                    this.angle = Math.atan2(this.y - danger.y, this.x - danger.x);
+                    dx = Math.cos(this.angle); dy = Math.sin(this.angle);
+                    isShooting = false; wantsToHide = true;
+                }
             }
 
             if (this.hasRainmaker || this.hasGoldenEgg) { wantsSub = false; wantsSp = false; wantsToHide = false; speedMult *= 0.75; }
 
             this.isHiding = wantsToHide && onOwnInk;
+            if (this.weapon && this.weapon.id === 22 && !this.prevAttack) this.shieldHp = Math.min(300, (this.shieldHp||0) + 2);
             if (this.isHiding) speedMult *= 1.8; else if (onOwnInk) speedMult *= 1.2; else if (onEnemyInk) speedMult *= 0.5;
             if (isShooting && !this.isHiding && !this.salmonType) { 
                 if ([5, 6, 7].includes(this.weapon.id)) speedMult *= 0.6; 
-                else if ([11, 12, 13].includes(this.weapon.id)) speedMult *= 0.3; 
-                else if ([17, 18].includes(this.weapon.id)) speedMult *= 1.2; 
+                else if ([11, 12, 13, 29, 32].includes(this.weapon.id)) speedMult *= 0.3; 
+                else if ([17, 18, 19, 20, 25, 26].includes(this.weapon.id)) speedMult *= 1.2;
+                if (this.isSpecialActive && this.weapon.sp === 'ENERGY_STAND') speedMult *= 1.5; 
                 else speedMult *= 0.7; 
             }
 
@@ -694,6 +796,8 @@
             else { this.x += dx * this.baseSpeed * speedMult; this.y += dy * this.baseSpeed * speedMult; }
             this.x = Math.max(this.radius, Math.min(STAGE_W - this.radius, this.x)); this.y = Math.max(this.radius, Math.min(STAGE_H - this.radius, this.y));
 
+            if (this.isPlayer && this.kills >= 10) unlockAchievement('kill_10', 'キルマシーン (10キル)');
+            if (this.isPlayer && this.paintPoints >= 1000) unlockAchievement('paint_1000', '塗り職人 (1000pt)');
             if (!this.salmonType) {
                 if (this.isHiding) { this.ink = Math.min(this.maxInk, this.ink + 1.5); this.hp = Math.min(this.maxHp, this.hp + 0.5); } else { this.ink = Math.min(this.maxInk, this.ink + 0.1); }
                 if (isShooting && !this.isHiding && this.ink >= this.weapon.inkCost) this.shoot(dx, dy);
@@ -712,17 +816,43 @@
                     else if (this.weapon.sp === 'TENTAMISSILES') {
                         let targets = players.filter(p => p.team !== this.team && !p.isDead && p.salmonType !== 'CHUM').sort(()=>Math.random()-0.5).slice(0, 4);
                         if(targets.length === 0) targets = players.filter(p => p.team !== this.team && !p.isDead).sort(()=>Math.random()-0.5).slice(0, 4);
-                        targets.forEach((t, i) => { setTimeout(() => { if(!isGameOver && !isReplayMode) { let s = new Inkstrike(t.x, t.y, this.team, this); strikes.push(s); } }, i * 200); });
+                        targets.forEach((t, i) => { setTimeout(() => { if(!isGameOver && !isReplayMode && t) { let s = new Inkstrike(t.x, t.y, this.team, this, 60, 'MISSILE'); s.radius = 60; strikes.push(s); } }, i * 200); });
                     }
                     else if (this.weapon.sp === 'BOOYAH_BOMB') {
                         let tx = this.x + Math.cos(this.angle) * 300, ty = this.y + Math.sin(this.angle) * 300; 
                         if (this.isPlayer && !isMobile) { tx = mouse.x + camX; ty = mouse.y + camY; } 
-                        let s = new Inkstrike(tx, ty, this.team, this); s.radius = 250; s.timer = 100; strikes.push(s);
+                        let s = new Inkstrike(tx, ty, this.team, this, 120, 'BOOYAH'); s.radius = 220; strikes.push(s);
                     }
                     else if (this.weapon.sp === 'TORNADO') { 
                         let tx = this.x + Math.cos(this.angle) * 250, ty = this.y + Math.sin(this.angle) * 250; 
                         if (this.isPlayer && !isMobile) { tx = mouse.x + camX; ty = mouse.y + camY; } 
                         strikes.push(new Inkstrike(tx, ty, this.team, this)); 
+                    }
+                    else if (this.weapon.sp === 'LASER') {
+                        let s = new Inkstrike(this.x, this.y, this.team, this, 60, 'LASER'); 
+                        s.angle = this.angle; s.radius = 45; strikes.push(s);
+                    }
+                    else if (this.weapon.sp === 'ARMOR') {
+                        this.maxHp = 200; this.hp = 200; this.isSpecialActive = true; this.specialTimer = 180;
+                    }
+                    else if (this.weapon.sp === 'ENERGY_STAND') {
+                        this.isSpecialActive = true; this.specialTimer = 600;
+                    }
+                    else if (this.weapon.sp === 'SHARK') {
+                        this.isSpecialActive = true; this.specialTimer = 30; this.isSharking = true;
+                    }
+                    else if (this.weapon.sp === 'METEOR') {
+                        let tx = STAGE_W/2, ty = STAGE_H/2;
+                        let nearestEnemy = players.find(p => p.team !== this.team && !p.isDead);
+                        if(nearestEnemy) { tx = nearestEnemy.x; ty = nearestEnemy.y; }
+                        let s = new Inkstrike(tx, ty, this.team, this, 150, 'METEOR');
+                        s.radius = 350; strikes.push(s);
+                    }
+                    else if (this.weapon.sp === 'KRAKEN') {
+                        this.isSpecialActive = true; this.specialTimer = 420; this.isKraken = true;
+                    }
+                    else if (this.weapon.sp === 'SPIDER') {
+                        this.isSpecialActive = true; this.specialTimer = 480; this.isSpider = true;
                     }
                 }
             } else if (isShooting) { this.shoot(dx, dy); }
@@ -742,21 +872,51 @@
                 let w = this.weapon; if(!this.salmonType) this.ink -= w.inkCost;
                 if ([5, 6, 7, 17, 18].includes(w.id)) { 
                     if (dx !== 0 || dy !== 0) { let p = splat(this.x, this.y, w.inkSize, this.team, this); this.paintPoints += p; if (!this.salmonType) this.sp += p; for (let e of players) if (!e.isDead && e.team !== this.team && Math.hypot(e.x - this.x, e.y - this.y) < w.inkSize) e.takeDamage(w.damage, this); if (gameMode === 'rainmaker' && rainmaker && rainmaker.state === 'barrier' && Math.hypot(rainmaker.x - this.x, rainmaker.y - this.y) < w.inkSize) rainmaker.takeDamage(5, this.team); } else { for (let i = -2; i <= 2; i++) bullets.push(new Bullet(this.x, this.y, this.angle + i * w.spread, this.team, w, this)); this.cooldown = w.fireRate; }
-                } else if ([14, 15, 16].includes(w.id)) {
+                } else if ([14, 15, 16, 28].includes(w.id)) {
                     bullets.push(new Bullet(this.x, this.y, this.angle, this.team, w, this)); this.cooldown = w.fireRate;
                 } else {
-                    let spreadAngle = this.angle + (Math.random()-0.5) * w.spread;
-                    bullets.push(new Bullet(this.x, this.y, spreadAngle, this.team, w, this)); this.cooldown = w.fireRate;
+                    if (w.id === 19) {
+                        for(let i=-1; i<=1; i+=2) { let b = new Bullet(this.x + Math.cos(this.angle+Math.PI/2)*5*i, this.y + Math.sin(this.angle+Math.PI/2)*5*i, this.angle + (Math.random()-0.5)*w.spread, this.team, w, this); bullets.push(b); }
+                    } else if (w.id === 20) {
+                        let b = new Bullet(this.x, this.y, this.angle, this.team, w, this); b.radius = 12; bullets.push(b);
+                    } else if (w.id === 21) {
+                        for(let i=-1; i<=1; i++) { bullets.push(new Bullet(this.x, this.y, this.angle + i*0.2 + (Math.random()-0.5)*0.1, this.team, w, this)); }
+                    } else if (w.id === 22) {
+                        for(let i=0; i<4; i++) { bullets.push(new Bullet(this.x, this.y, this.angle + (Math.random()-0.5)*0.4, this.team, w, this)); }
+                    } else if (w.id === 27) {
+                        let p = splat(this.x + Math.cos(this.angle)*60, this.y + Math.sin(this.angle)*60, 60, this.team, this);
+                        this.paintPoints += p; if (!this.salmonType) this.sp += p;
+                        for (let e of players) {
+                            if (e.team !== this.team && !e.isDead && Math.hypot(e.x - this.x, e.y - this.y) < 130) {
+                                let angleToE = Math.atan2(e.y - this.y, e.x - this.x);
+                                let diff = Math.abs(angleToE - this.angle);
+                                if (diff > Math.PI) diff = 2*Math.PI - diff;
+                                if (diff < 1.2) e.takeDamage(w.damage, this);
+                            }
+                        }
+                        if (gameMode === 'rainmaker' && rainmaker && rainmaker.state === 'barrier' && Math.hypot(rainmaker.x - this.x, rainmaker.y - this.y) < 130) rainmaker.takeDamage(w.damage, this.team);
+                    } else {
+                        let spreadAngle = this.angle + (Math.random()-0.5) * w.spread;
+                        bullets.push(new Bullet(this.x, this.y, spreadAngle, this.team, w, this));
+                    }
+                    this.cooldown = w.fireRate;
                 }
             }
         }
         
         takeDamage(amt, attacker) {
-            if (this.isDead || (this.isSpecialActive && this.weapon.sp === 'SPLASHDOWN')) return;
+            if (this.isDead || (this.isSpecialActive && (this.weapon.sp === 'SPLASHDOWN' || this.isKraken)) || this.isSharking) return;
+            if (this.weapon && this.weapon.id === 22 && (this.prevAttack || this.attackHeldTimer > 5)) {
+                if (this.shieldHp === undefined) this.shieldHp = 300;
+                let block = Math.min(amt, this.shieldHp);
+                this.shieldHp -= block;
+                amt -= block;
+                if (amt <= 0) return;
+            }
             this.hp -= amt;
             if(this.salmonType === 'OKASHIRA') {
                 document.getElementById('okashiraHpBar').style.width = `${Math.max(0, (this.hp/this.maxHp)*100)}%`;
-                if(this.hp <= 0) endGame('EXTRA WAVE CLEAR!!', 'オカシラシャケを撃破した！');
+                if(this.hp <= 0) { unlockAchievement('okashira_kill', 'オカシラハンター'); if(hazardLevel >= 3.33) unlockAchievement('salmon_333', '伝説のアルバイター (333%クリア)'); endGame('EXTRA WAVE CLEAR!!', 'オカシラシャケを撃破した！'); }
             }
             if (this.hp <= 0) {
                 if(attacker && attacker.kills !== undefined) attacker.kills++;
@@ -765,8 +925,16 @@
                 if (!isReplayMode && !isGameOver) {
                     replayKillEvents.push({ f: frameCount, killer: attacker ? attacker.name : 'Unknown', victim: this.name });
                 }
-                if (attacker && attacker.isPlayer) showKillLog("敵をたおした！");
+                if (this.isPlayer) {
+                    showKillLog(`やられた！ 倒した敵: ${attacker ? attacker.name : 'Unknown'}`);
+                } else if (attacker && attacker.isPlayer) {
+                    showKillLog("敵をたおした！");
+                }
 
+                if (gameMode === 'clam' && this.clams > 0) {
+                    for(let i=0; i<this.clams; i++) clams.push({x: this.x + (Math.random()-0.5)*40, y: this.y + (Math.random()-0.5)*40, active: true});
+                    this.clams = 0;
+                }
                 if (gameMode === 'salmon' && this.team === 0) {
                     this.isDead = true; this.isLifeRing = true; this.respawnTimer = Infinity;
                     if(this.hasGoldenEgg) { this.hasGoldenEgg = false; goldenEggs.push({x: this.x, y: this.y}); }
@@ -793,6 +961,10 @@
             }
 
             if (this.isSpecialActive && this.weapon.sp === 'SPLASHDOWN') { let scale = 1 + (45 - this.specialTimer) / 10; fgCtx.beginPath(); fgCtx.arc(0, 0, 160, 0, Math.PI * 2); fgCtx.fillStyle = TEAM_COLORS[this.team] + '33'; fgCtx.fill(); fgCtx.scale(scale, scale); }
+            if (this.weapon && this.weapon.id === 22 && (this.prevAttack || this.attackHeldTimer > 5) && this.shieldHp > 0) {
+                fgCtx.strokeStyle = `rgba(255,255,255,${this.shieldHp/300})`; fgCtx.lineWidth = 4;
+                fgCtx.beginPath(); fgCtx.arc(0, 0, radius+15, -Math.PI/2, Math.PI/2); fgCtx.stroke();
+            }
             if (this.isHiding) { fgCtx.strokeStyle = TEAM_COLORS[this.team]; fgCtx.lineWidth = 2; fgCtx.beginPath(); fgCtx.arc(0, 0, radius * 0.8, 0, Math.PI * 2); fgCtx.stroke(); fgCtx.restore(); return; }
             if (this.hp < this.maxHp && !this.isSpecialActive && this.salmonType !== 'OKASHIRA') { fgCtx.fillStyle = '#ff0000'; fgCtx.fillRect(-15, -20, 30, 4); fgCtx.fillStyle = '#00ff00'; fgCtx.fillRect(-15, -20, 30 * (Math.max(0, this.hp) / this.maxHp), 4); }
             if (this.hasRainmaker) { fgCtx.shadowBlur = 10; fgCtx.shadowColor = '#ffd700'; }
@@ -819,6 +991,20 @@
                 else if (wId === 11 || wId === 12 || wId === 13) { fgCtx.fillRect(radius - 2, -3, 25, 6); }
                 else if (wId === 14 || wId === 15 || wId === 16) { fgCtx.fillRect(radius - 2, -8, 12, 16); fgCtx.fillStyle = TEAM_COLORS[this.team]; fgCtx.beginPath(); fgCtx.arc(radius+10, 0, 8, 0, Math.PI*2); fgCtx.fill(); }
                 else if (wId === 17 || wId === 18) { fgCtx.fillRect(radius - 2, -1, 15, 2); fgCtx.fillStyle = TEAM_COLORS[this.team]; fgCtx.fillRect(radius + 13, -8, 4, 16); }
+                else if (wId === 19) { fgCtx.fillRect(radius - 2, -8, 8, 16); fgCtx.fillRect(radius - 2, 4, 8, 16); }
+                else if (wId === 20) { fgCtx.fillRect(radius - 2, -2, 20, 4); fgCtx.fillStyle = '#777'; fgCtx.fillRect(radius + 18, -10, 4, 20); }
+                else if (wId === 21) { fgCtx.fillRect(radius - 2, -15, 5, 30); fgCtx.fillStyle = TEAM_COLORS[this.team]; fgCtx.fillRect(radius + 3, -15, 2, 30); }
+                else if (wId === 22) { fgCtx.fillRect(radius - 2, -4, 15, 8); fgCtx.fillStyle = TEAM_COLORS[this.team]; fgCtx.beginPath(); fgCtx.arc(radius + 13, 0, 12, -Math.PI/2, Math.PI/2); fgCtx.fill(); }
+                else if (wId === 23) { fgCtx.fillRect(radius - 2, -4, 12, 8); fgCtx.fillStyle = '#ff1493'; fgCtx.fillRect(radius + 4, -4, 4, 8); }
+                else if (wId === 24) { fgCtx.fillRect(radius - 2, -2, 10, 4); fgCtx.fillStyle = '#ffd700'; fgCtx.fillRect(radius + 6, -15, 6, 30); }
+                else if (wId === 25) { fgCtx.fillRect(radius - 2, -8, 8, 16); fgCtx.fillRect(radius - 2, 4, 8, 16); fgCtx.fillStyle = '#ff1493'; fgCtx.fillRect(radius, -6, 2, 12); }
+                else if (wId === 26) { fgCtx.fillRect(radius - 2, -2, 20, 4); fgCtx.fillStyle = '#ffd700'; fgCtx.fillRect(radius + 18, -10, 4, 20); }
+                else if (wId === 27) { fgCtx.fillRect(radius - 2, -2, 15, 4); fgCtx.fillStyle = TEAM_COLORS[this.team]; fgCtx.beginPath(); fgCtx.arc(radius + 15, 0, 8, 0, Math.PI*2); fgCtx.fill(); }
+                else if (wId === 28) { fgCtx.fillRect(radius - 2, -4, 20, 8); fgCtx.fillStyle = '#555'; fgCtx.fillRect(radius + 15, -6, 8, 12); }
+                else if (wId === 29) { fgCtx.fillRect(radius - 2, -2, 28, 4); fgCtx.fillStyle = TEAM_COLORS[this.team]; fgCtx.fillRect(radius + 10, -4, 10, 8); }
+                else if (wId === 31 || wId === 34) { fgCtx.fillRect(radius - 2, -4, 18, 8); fgCtx.fillStyle = (wId===34)?'#fff':'#333'; fgCtx.fillRect(radius + 12, -5, 6, 10); }
+                else if (wId === 32) { fgCtx.fillRect(radius - 2, -3, 30, 6); fgCtx.fillStyle = '#111'; fgCtx.fillRect(radius + 20, -5, 12, 10); }
+                else if (wId === 33) { fgCtx.fillRect(radius - 2, -3, 22, 6); fgCtx.fillStyle = TEAM_COLORS[this.team]; fgCtx.fillRect(radius + 18, -6, 6, 12); }
             }
             fgCtx.restore();
             
@@ -836,7 +1022,7 @@
         constructor(x, y, angle, team, weapon, attacker) { this.x = x; this.y = y; this.vx = Math.cos(angle) * weapon.bulletSpeed; this.vy = Math.sin(angle) * weapon.bulletSpeed; this.team = team; this.weapon = weapon; this.life = 20 + (Math.random() * 5); this.radius = [11,12,13].includes(weapon.id) ? 4 : (weapon.id===99? 12: 5); this.attacker = attacker; this.damage = weapon.damage; }
         update() {
             this.x += this.vx; this.y += this.vy; this.life--;
-            if ([11,12,13].includes(this.weapon.id) || (![8,9,10,99,14,15,16].includes(this.weapon.id) && this.life % 3 === 0)) { let p = splat(this.x, this.y, this.weapon.inkSize * 0.4, this.team, this.attacker); if (this.attacker) { this.attacker.paintPoints+=p; if (!this.attacker.salmonType) this.attacker.sp += p; } }
+            if ([11,12,13].includes(this.weapon.id) || (![8,9,10,99,14,15,16].includes(this.weapon.id) && this.life % 3 === 0)) { let p = splat(this.x, this.y, this.weapon.inkSize * 0.4, this.team, this.attacker); this.attacker.paintPoints+=p; if (!this.attacker.salmonType) this.attacker.sp += p; }
             for (let p of players) {
                 if (gameMode === 'salmon' && p.team === this.team && p.isDead && p.isLifeRing && p !== this.attacker && Math.hypot(p.x - this.x, p.y - this.y) < p.radius + this.radius) { p.revive(); if(this.attacker) this.attacker.revives++; this.explode(); return false; }
                 if (!p.isDead && p.team !== this.team && !p.isSpecialActive && Math.hypot(p.x - this.x, p.y - this.y) < p.radius + this.radius) { p.takeDamage(this.damage, this.attacker); this.explode(); return false; }
@@ -846,7 +1032,7 @@
         }
         explode() {
             let isExplosive = [8,9,10,99,14,15,16].includes(this.weapon.id);
-            let size = isExplosive ? this.weapon.inkSize * 1.5 : this.weapon.inkSize; let p = splat(this.x, this.y, size, this.team, this.attacker); if (this.attacker) { this.attacker.paintPoints+=p; if (!this.attacker.salmonType) this.attacker.sp += p; }
+            let size = isExplosive ? this.weapon.inkSize * 1.5 : this.weapon.inkSize; let p = splat(this.x, this.y, size, this.team, this.attacker); this.attacker.paintPoints+=p; if (!this.attacker.salmonType) this.attacker.sp += p;
             if (isExplosive) {
                 for (let e of players) {
                     if (gameMode === 'salmon' && e.team === this.team && e.isDead && e.isLifeRing && Math.hypot(e.x - this.x, e.y - this.y) < size) { e.revive(); if(this.attacker) this.attacker.revives++; }
@@ -862,14 +1048,14 @@
         constructor(x, y, angle, team, attacker, type) { this.x = x; this.y = y; this.type = type; let speed = 8; if(type==='CURLING') speed=12; else if(type==='QUICK') speed=14; else if(type==='SUCTION') speed=6; this.vx = Math.cos(angle) * speed; this.vy = Math.sin(angle) * speed; this.team = team; this.attacker = attacker; this.timer = 60; if(type==='CURLING') this.timer=90; else if(type==='QUICK') this.timer=5; else if(type==='SUCTION') this.timer=120; this.radius = 8; }
         update() {
             this.x += this.vx; this.y += this.vy;
-            if (this.type === 'CURLING') { if (this.x < 0 || this.x > STAGE_W) this.vx *= -1; if (this.y < 0 || this.y > STAGE_H) this.vy *= -1; if (this.timer % 3 === 0) { let p = splat(this.x, this.y, 20, this.team, this.attacker); if (this.attacker) { this.attacker.paintPoints+=p; if (!this.attacker.salmonType) this.attacker.sp += p; } } } 
+            if (this.type === 'CURLING') { if (this.x < 0 || this.x > STAGE_W) this.vx *= -1; if (this.y < 0 || this.y > STAGE_H) this.vy *= -1; if (this.timer % 3 === 0) { let p = splat(this.x, this.y, 20, this.team, this.attacker); this.attacker.paintPoints+=p; if (!this.attacker.salmonType) this.attacker.sp += p; } } 
             else if (this.type === 'SUCTION') { this.vx *= 0.8; this.vy *= 0.8; }
             else { this.vx *= 0.92; this.vy *= 0.92; }
             this.timer--;
             if (this.timer <= 0) {
                 let size = 80; if(this.type==='CURLING') size=90; else if(this.type==='QUICK') size=50; else if(this.type==='SUCTION') size=120;
                 let dmg = 150; if(this.type==='QUICK') dmg=60; else if(this.type==='SUCTION') dmg=200;
-                let p = splat(this.x, this.y, size, this.team, this.attacker); if (this.attacker) { this.attacker.paintPoints+=p; if (!this.attacker.salmonType) this.attacker.sp += p; }
+                let p = splat(this.x, this.y, size, this.team, this.attacker); this.attacker.paintPoints+=p; if (!this.attacker.salmonType) this.attacker.sp += p;
                 for (let e of players) {
                     if (gameMode === 'salmon' && e.team === this.team && e.isDead && e.isLifeRing && Math.hypot(e.x - this.x, e.y - this.y) < size) { e.revive(); if(this.attacker) this.attacker.revives++; }
                     if (!e.isDead && e.team !== this.team && !e.isSpecialActive && Math.hypot(e.x - this.x, e.y - this.y) < size) e.takeDamage(dmg, this.attacker);
@@ -882,20 +1068,57 @@
     }
 
     class Inkstrike {
-        constructor(x, y, team, attacker) { this.x = x; this.y = y; this.team = team; this.attacker = attacker; this.timer = 75; this.radius = 180; }
+        constructor(x, y, team, attacker, maxTimer = 75, type = 'TORNADO') { this.x = x; this.y = y; this.team = team; this.attacker = attacker; this.maxTimer = maxTimer; this.timer = maxTimer; this.type = type; this.radius = type==='MISSILE' ? 90 : 180; this.angle = 0; }
         update() {
             this.timer--;
+            if(this.type === 'BOOYAH') this.angle += 0.15;
+            if(this.type === 'LASER') {
+                this.x += Math.cos(this.angle) * 35;
+                this.y += Math.sin(this.angle) * 35;
+                let p = splat(this.x, this.y, this.radius, this.team, this.attacker); this.attacker.paintPoints+=p; if (!this.attacker.salmonType) this.attacker.sp += p;
+                for (let e of players) {
+                    if (!e.isDead && e.team !== this.team && Math.hypot(e.x - this.x, e.y - this.y) < this.radius) e.takeDamage(60, this.attacker);
+                }
+            }
+            if(this.type === 'METEOR') {
+                if (this.timer % 10 === 0) {
+                    let r = this.radius * (1 - this.timer/this.maxTimer);
+                    splat(this.x, this.y, r, this.team, this.attacker);
+                }
+            }
             if (this.timer <= 0) {
-                let p = splat(this.x, this.y, this.radius, this.team, this.attacker); if (this.attacker) { this.attacker.paintPoints+=p; if (!this.attacker.salmonType) this.attacker.sp += p; }
+                let pRad = this.type === 'BOOYAH' ? this.radius * 0.4 : this.radius;
+                if (this.type !== 'LASER') {
+                    let p = splat(this.x, this.y, pRad, this.team, this.attacker); this.attacker.paintPoints+=p; if (!this.attacker.salmonType) this.attacker.sp += p;
+                }
                 for (let e of players) {
                     if (gameMode === 'salmon' && e.team === this.team && e.isDead && e.isLifeRing && Math.hypot(e.x - this.x, e.y - this.y) < this.radius) { e.revive(); if(this.attacker) this.attacker.revives++; }
-                    if (!e.isDead && e.team !== this.team && Math.hypot(e.x - this.x, e.y - this.y) < this.radius) e.takeDamage(200, this.attacker);
+                    if (!e.isDead && Math.hypot(e.x - this.x, e.y - this.y) < this.radius) { if (this.type === 'METEOR') e.takeDamage(200, this.attacker); else if (e.team !== this.team) e.takeDamage(200, this.attacker); }
                 }
                 if (gameMode === 'rainmaker' && rainmaker && rainmaker.state === 'barrier' && Math.hypot(rainmaker.x - this.x, rainmaker.y - this.y) < this.radius + 40) rainmaker.takeDamage(400, this.team);
                 return false;
             } return true;
         }
-        draw() { fgCtx.strokeStyle = TEAM_COLORS[this.team]; fgCtx.lineWidth = 3; fgCtx.setLineDash([10, 15]); fgCtx.beginPath(); fgCtx.arc(this.x, this.y, this.radius, 0, Math.PI * 2); fgCtx.stroke(); fgCtx.setLineDash([]); fgCtx.fillStyle = TEAM_COLORS[this.team] + '88'; fgCtx.beginPath(); fgCtx.arc(this.x, this.y, this.radius * (1 - this.timer/75), 0, Math.PI * 2); fgCtx.fill(); }
+        draw() { 
+            let currentRadius = this.radius * Math.max(0.01, 1 - this.timer/this.maxTimer);
+            if (this.type === 'BOOYAH') {
+                currentRadius = this.radius * Math.pow(1 - this.timer/this.maxTimer, 2);
+                fgCtx.save(); fgCtx.translate(this.x, this.y); fgCtx.rotate(this.angle);
+                fgCtx.beginPath(); fgCtx.arc(0, 0, currentRadius, 0, Math.PI); fgCtx.fillStyle = TEAM_COLORS[this.team] + 'dd'; fgCtx.fill();
+                fgCtx.beginPath(); fgCtx.arc(0, 0, currentRadius, Math.PI, Math.PI*2); fgCtx.fillStyle = '#fff'; fgCtx.fill();
+                fgCtx.restore();
+            } else if (this.type === 'LASER') {
+                fgCtx.save(); fgCtx.translate(this.x, this.y); fgCtx.rotate(this.angle);
+                fgCtx.fillStyle = TEAM_COLORS[this.team]; fgCtx.fillRect(-20, -this.radius, 150, this.radius*2);
+                fgCtx.fillStyle = '#fff'; fgCtx.fillRect(-20, -this.radius/2, 150, this.radius);
+                fgCtx.restore();
+            } else if (this.type === 'METEOR') {
+                fgCtx.fillStyle = 'rgba(255,0,0,0.3)'; fgCtx.beginPath(); fgCtx.arc(this.x, this.y, this.radius, 0, Math.PI*2); fgCtx.fill();
+                fgCtx.fillStyle = '#ff4500'; fgCtx.beginPath(); fgCtx.arc(this.x, this.y, currentRadius, 0, Math.PI*2); fgCtx.fill();
+            } else {
+                fgCtx.strokeStyle = TEAM_COLORS[this.team]; fgCtx.lineWidth = 3; fgCtx.setLineDash([10, 15]); fgCtx.beginPath(); fgCtx.arc(this.x, this.y, this.radius, 0, Math.PI * 2); fgCtx.stroke(); fgCtx.setLineDash([]); fgCtx.fillStyle = TEAM_COLORS[this.team] + '88'; fgCtx.beginPath(); fgCtx.arc(this.x, this.y, currentRadius, 0, Math.PI * 2); fgCtx.fill(); 
+            }
+        }
     }
 
     function splat(cx, cy, radius, team, attacker, isReplay = false) {
@@ -977,6 +1200,12 @@
         replayFrames = []; replaySplatEvents = []; replayKillEvents = []; isReplayMode = false;
         frameCount = 0;
 
+        clams = []; clamBaskets = [];
+        if (mode === 'clam') {
+            clamBaskets = [{x: 150, y: STAGE_H/2, team: 0}, {x: STAGE_W-150, y: STAGE_H/2, team: 1}];
+            document.getElementById('clamUi').style.display = 'block';
+        } else if (document.getElementById('clamUi')) document.getElementById('clamUi').style.display = 'none';
+
         if (mode === 'salmon') {
             hazardLevel = parseInt(document.getElementById('hazardSlider').value) || 100;
             document.getElementById('salmonUi').style.display = 'block';
@@ -993,19 +1222,33 @@
         players = []; bullets = []; bombs = []; strikes = []; goldenEggs = [];
         bgCtx.fillStyle = currentStageBg; bgCtx.fillRect(0, 0, STAGE_W, STAGE_H);
 
+        clams = []; clamBaskets = [];
+        if (mode === 'clam') {
+            clamBaskets = [{x: 150, y: STAGE_H/2, team: 0}, {x: STAGE_W-150, y: STAGE_H/2, team: 1}];
+            document.getElementById('clamUi').style.display = 'block';
+        } else if (document.getElementById('clamUi')) document.getElementById('clamUi').style.display = 'none';
+
         if (mode === 'salmon') {
             players.push(new Entity(STAGE_W/2 - 50, STAGE_H/2, 0, true, null));
             for(let i=1; i<teamSize; i++) players.push(new Entity(STAGE_W/2 + (Math.random()-0.5)*100, STAGE_H/2 + (Math.random()-0.5)*100, 0, false, null, `Bot ${i}`));
             startWave(); 
         } else if (mode === 'hero') {
             players.push(new Entity(100, STAGE_H / 2, 0, true, null));
-            for(let i=0; i<15; i++) players.push(new Entity(STAGE_W * 0.2 + Math.random() * STAGE_W * 0.8, Math.random() * STAGE_H, 1, false, null, `Octarian ${i}`));
+            let bosses = ['YOKOZUNA', 'TATSU', 'JOE'];
+            if (heroStage === 1) {
+                players.push(new Entity(STAGE_W - 100, STAGE_H / 2, 1, false, bosses[Math.floor(Math.random() * bosses.length)]));
+            } else {
+                players.push(new Entity(STAGE_W - 150, STAGE_H / 2 - 150, 1, false, 'YOKOZUNA'));
+                players.push(new Entity(STAGE_W - 100, STAGE_H / 2, 1, false, 'TATSU'));
+                players.push(new Entity(STAGE_W - 150, STAGE_H / 2 + 150, 1, false, 'JOE'));
+            }
         } else {
             players.push(new Entity(STAGE_W * 0.1, STAGE_H / 2, 0, true, null)); 
             for(let i=1; i<teamSize; i++) players.push(new Entity(STAGE_W * 0.1, STAGE_H * (i/(teamSize+1)), 0, false, null, `Blue ${i}`)); 
             for(let i=0; i<teamSize; i++) players.push(new Entity(STAGE_W * 0.9, STAGE_H * ((i+1)/(teamSize+1)), 1, false, null, `Orange ${i}`)); 
         }
 
+        unlockAchievement('first_play', '初めてのバトル');
         lastTime = performance.now();
         if(gameLoopId) cancelAnimationFrame(gameLoopId);
         gameLoop();
@@ -1023,7 +1266,9 @@
                 rm: rainmaker ? { x: rainmaker.x, y: rainmaker.y, s: rainmaker.state } : null,
                 tw: tower ? { x: tower.x, y: tower.y, c: tower.teamInControl } : null,
                 sz: splatZone ? { c: splatZone.teamInControl } : null,
-                egs: goldenEggs.map(e => ({ x: e.x, y: e.y }))
+                egs: goldenEggs.map(e => ({ x: e.x, y: e.y })),
+                cls: clams.map(c => ({x: c.x, y: c.y, a: c.active})),
+                cbs: clamBaskets.map(b => ({x: b.x, y: b.y, t: b.team, c: bestCount[b.team]}))
             };
             replayFrames.push(frameData);
         }
@@ -1035,7 +1280,7 @@
 
         if(gameMode === 'rainmaker' || gameMode === 'tower') { fgCtx.fillStyle = 'rgba(0, 123, 255, 0.3)'; fgCtx.fillRect(STAGE_W - 80, 0, 80, STAGE_H); fgCtx.fillStyle = 'rgba(255, 127, 0, 0.3)'; fgCtx.fillRect(0, 0, 80, STAGE_H); fgCtx.fillStyle = '#fff'; fgCtx.font = '20px Arial'; fgCtx.fillText("GOAL", STAGE_W - 70, STAGE_H/2); fgCtx.fillText("GOAL", 10, STAGE_H/2); } 
         else if (gameMode === 'salmon') { fgCtx.fillStyle = 'rgba(0, 0, 0, 0.2)'; fgCtx.beginPath(); fgCtx.arc(basket.x, basket.y, basket.radius+10, 0, Math.PI*2); fgCtx.fill(); fgCtx.strokeStyle = '#ffcc00'; fgCtx.lineWidth = 4; fgCtx.beginPath(); fgCtx.arc(basket.x, basket.y, basket.radius, 0, Math.PI*2); fgCtx.stroke(); fgCtx.fillStyle = '#fff'; fgCtx.font = '16px Arial'; fgCtx.fillText("BASKET", basket.x - 35, basket.y + 5); }
-        else if (gameMode === 'hero') { fgCtx.fillStyle = '#ffea00'; fgCtx.beginPath(); fgCtx.arc(STAGE_W - 100, STAGE_H / 2, 60, 0, Math.PI*2); fgCtx.fill(); fgCtx.fillStyle = '#000'; fgCtx.font = '20px Arial'; fgCtx.fillText("GOAL", STAGE_W - 130, STAGE_H / 2 + 5); if (mainP && Math.hypot(mainP.x - (STAGE_W - 100), mainP.y - STAGE_H / 2) < 60) endGame('HERO CLEAR!!', 'You reached the Goal!'); }
+        else if (gameMode === 'hero') { /* Boss fight logic handled in takeDamage */ }
 
         if(timestamp - lastTime >= 1000) {
             lastTime = timestamp; gameTimeLeft--;
@@ -1064,6 +1309,16 @@
         if(gameMode === 'rainmaker' && rainmaker) { rainmaker.update(); rainmaker.draw(); }
         else if(gameMode === 'tower' && tower) { tower.update(); tower.draw(); }
         else if(gameMode === 'zones' && splatZone) { splatZone.update(); splatZone.draw(); }
+        else if(gameMode === 'clam') {
+            if (document.getElementById('myClams')) document.getElementById('myClams').innerText = mainP ? (mainP.clams||0) : 0;
+            if(frameCount % 10 === 0 && clams.filter(c=>c.active).length < 60) {
+                clams.push({x: 100 + Math.random()*(STAGE_W-200), y: 100 + Math.random()*(STAGE_H-200), active: true});
+                clams.push({x: 100 + Math.random()*(STAGE_W-200), y: 100 + Math.random()*(STAGE_H-200), active: true});
+                clams.push({x: 100 + Math.random()*(STAGE_W-200), y: 100 + Math.random()*(STAGE_H-200), active: true});
+            }
+            clamBaskets.forEach(b => { fgCtx.fillStyle = TEAM_COLORS[b.team]; fgCtx.beginPath(); fgCtx.arc(b.x, b.y, 40, 0, Math.PI*2); fgCtx.fill(); fgCtx.strokeStyle = '#fff'; fgCtx.lineWidth = 4; fgCtx.stroke(); fgCtx.fillStyle = '#fff'; fgCtx.font = "20px Arial"; fgCtx.fillText(bestCount[b.team], b.x-15, b.y+5); });
+            clams.forEach(c => { if(c.active) { fgCtx.fillStyle = '#fff'; fgCtx.beginPath(); fgCtx.arc(c.x, c.y, 8, 0, Math.PI*2); fgCtx.fill(); fgCtx.strokeStyle = '#ff69b4'; fgCtx.lineWidth = 2; fgCtx.stroke(); } });
+        }
 
         for (let i = players.length - 1; i >= 0; i--) { let p = players[i]; if(p.isDead && !p.isLifeRing && p.salmonType) players.splice(i, 1); else { p.update(); p.draw(); } }
         for (let i = bullets.length - 1; i >= 0; i--) { if (!bullets[i].update()) bullets.splice(i, 1); else bullets[i].draw(); }
@@ -1159,7 +1414,15 @@
             let radius = p.st === 'OKASHIRA' ? 60 : (p.st === 'BAKUDAN' || p.st === 'MOGURA' ? 25 : (p.st === 'HEBI' || p.st === 'TOSSHIN' ? 20 : (p.st === 'TOWER' ? 15 : 12)));
             if (p.lr) { fgCtx.strokeStyle = '#ff7f00'; fgCtx.lineWidth = 6; fgCtx.beginPath(); fgCtx.arc(0, 0, radius, 0, Math.PI*2); fgCtx.stroke(); fgCtx.fillStyle = '#fff'; fgCtx.font = '10px Arial'; fgCtx.fillText("HELP", -12, 4); fgCtx.restore(); continue; }
             
-            if (p.sp && p.w !== 4) { fgCtx.beginPath(); fgCtx.arc(0, 0, 160, 0, Math.PI * 2); fgCtx.fillStyle = TEAM_COLORS[p.t] + '33'; fgCtx.fill(); }
+            if (p.sp && p.w !== 4 && p.w !== 26 && p.w !== 28) { fgCtx.beginPath(); fgCtx.arc(0, 0, 160, 0, Math.PI * 2); fgCtx.fillStyle = TEAM_COLORS[p.t] + '33'; fgCtx.fill(); }
+            if (p.sp && (p.w === 31 || p.w === 32)) { fgCtx.fillStyle = TEAM_COLORS[p.t]; fgCtx.beginPath(); fgCtx.moveTo(radius + 10, 0); fgCtx.lineTo(-radius, radius + 5); fgCtx.lineTo(-radius, -radius - 5); fgCtx.fill(); fgCtx.restore(); return; }
+            if (p.sp && p.w === 31) { // Approximate Kraken in replay
+                fgCtx.fillStyle = TEAM_COLORS[p.t]; fgCtx.beginPath(); fgCtx.moveTo(radius + 10, 0); fgCtx.lineTo(-radius, radius + 5); fgCtx.lineTo(-radius, -radius - 5); fgCtx.fill(); fgCtx.restore(); return;
+            }
+            if (p.w === 22 && p.cg) {
+                fgCtx.strokeStyle = `rgba(255,255,255,0.8)`; fgCtx.lineWidth = 4;
+                fgCtx.beginPath(); fgCtx.arc(0, 0, radius+15, Math.PI/2, 3*Math.PI/2); fgCtx.stroke(); // Flipped angle for replay to show visually
+            }
             if (p.hp < p.mHp && !p.sp && p.st !== 'OKASHIRA') { fgCtx.fillStyle = '#ff0000'; fgCtx.fillRect(-15, -20, 30, 4); fgCtx.fillStyle = '#00ff00'; fgCtx.fillRect(-15, -20, 30 * (Math.max(0, p.hp) / p.mHp), 4); }
             
             fgCtx.rotate(p.a);
@@ -1183,10 +1446,24 @@
                 else if (p.w === 11 || p.w === 12 || p.w === 13) { fgCtx.fillRect(radius - 2, -3, 25, 6); }
                 else if (p.w === 14 || p.w === 15 || p.w === 16) { fgCtx.fillRect(radius - 2, -8, 12, 16); fgCtx.fillStyle = TEAM_COLORS[p.t]; fgCtx.beginPath(); fgCtx.arc(radius+10, 0, 8, 0, Math.PI*2); fgCtx.fill(); }
                 else if (p.w === 17 || p.w === 18) { fgCtx.fillRect(radius - 2, -1, 15, 2); fgCtx.fillStyle = TEAM_COLORS[p.t]; fgCtx.fillRect(radius + 13, -8, 4, 16); }
+                else if (p.w === 19) { fgCtx.fillRect(radius - 2, -8, 8, 16); fgCtx.fillRect(radius - 2, 4, 8, 16); }
+                else if (p.w === 20) { fgCtx.fillRect(radius - 2, -2, 20, 4); fgCtx.fillStyle = '#777'; fgCtx.fillRect(radius + 18, -10, 4, 20); }
+                else if (p.w === 21) { fgCtx.fillRect(radius - 2, -15, 5, 30); fgCtx.fillStyle = TEAM_COLORS[p.t]; fgCtx.fillRect(radius + 3, -15, 2, 30); }
+                else if (p.w === 22) { fgCtx.fillRect(radius - 2, -4, 15, 8); fgCtx.fillStyle = TEAM_COLORS[p.t]; fgCtx.beginPath(); fgCtx.arc(radius + 13, 0, 12, -Math.PI/2, Math.PI/2); fgCtx.fill(); }
+                else if (p.w === 23) { fgCtx.fillRect(radius - 2, -4, 12, 8); fgCtx.fillStyle = '#ff1493'; fgCtx.fillRect(radius + 4, -4, 4, 8); }
+                else if (p.w === 24) { fgCtx.fillRect(radius - 2, -2, 10, 4); fgCtx.fillStyle = '#ffd700'; fgCtx.fillRect(radius + 6, -15, 6, 30); }
+                else if (p.w === 25) { fgCtx.fillRect(radius - 2, -8, 8, 16); fgCtx.fillRect(radius - 2, 4, 8, 16); fgCtx.fillStyle = '#ff1493'; fgCtx.fillRect(radius, -6, 2, 12); }
+                else if (p.w === 26) { fgCtx.fillRect(radius - 2, -2, 20, 4); fgCtx.fillStyle = '#ffd700'; fgCtx.fillRect(radius + 18, -10, 4, 20); }
+                else if (p.w === 27) { fgCtx.fillRect(radius - 2, -2, 15, 4); fgCtx.fillStyle = TEAM_COLORS[p.t]; fgCtx.beginPath(); fgCtx.arc(radius + 15, 0, 8, 0, Math.PI*2); fgCtx.fill(); }
+                else if (p.w === 28) { fgCtx.fillRect(radius - 2, -4, 20, 8); fgCtx.fillStyle = '#555'; fgCtx.fillRect(radius + 15, -6, 8, 12); }
+                else if (p.w === 29) { fgCtx.fillRect(radius - 2, -2, 28, 4); fgCtx.fillStyle = TEAM_COLORS[p.t]; fgCtx.fillRect(radius + 10, -4, 10, 8); }
+                else if (p.w === 31 || p.w === 34) { fgCtx.fillRect(radius - 2, -4, 18, 8); fgCtx.fillStyle = (p.w===34)?'#fff':'#333'; fgCtx.fillRect(radius + 12, -5, 6, 10); }
+                else if (p.w === 32) { fgCtx.fillRect(radius - 2, -3, 30, 6); fgCtx.fillStyle = '#111'; fgCtx.fillRect(radius + 20, -5, 12, 10); }
+                else if (p.w === 33) { fgCtx.fillRect(radius - 2, -3, 22, 6); fgCtx.fillStyle = TEAM_COLORS[p.t]; fgCtx.fillRect(radius + 18, -6, 6, 12); }
             }
             fgCtx.restore();
             
-            if (p.cg && [11,12,13].includes(p.w)) { fgCtx.strokeStyle = TEAM_COLORS[p.t] + '88'; fgCtx.lineWidth = 2; fgCtx.beginPath(); fgCtx.moveTo(p.x, p.y); fgCtx.lineTo(p.x + Math.cos(p.a) * 300, p.y + Math.sin(p.a) * 300); fgCtx.stroke(); }
+            if (p.cg && [11,12,13,29,32].includes(p.w)) { fgCtx.strokeStyle = TEAM_COLORS[p.t] + '88'; fgCtx.lineWidth = 2; fgCtx.beginPath(); fgCtx.moveTo(p.x, p.y); fgCtx.lineTo(p.x + Math.cos(p.a) * 300, p.y + Math.sin(p.a) * 300); fgCtx.stroke(); }
             if(!p.st && p.nm !== document.getElementById('playerNameInput').value) { fgCtx.fillStyle = '#fff'; fgCtx.font = '10px Arial'; fgCtx.fillText(p.nm, p.x - 10, p.y - 15); }
             if (p.eg) { fgCtx.fillStyle = '#ffd700'; fgCtx.beginPath(); fgCtx.arc(p.x, p.y - 15, 6, 0, Math.PI*2); fgCtx.fill(); fgCtx.strokeStyle='#fff'; fgCtx.stroke(); }
         }
